@@ -126,5 +126,27 @@ func bookByISBN(s *mgo.Session) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		session := s.Copy()
 		defer session.Close()
+
+		isbn := pat.Param(r, "isbn")
+		c := session.DB("store").C("books")
+		var book Book
+		err := c.Find(bson.M{"isbn": isbn}).One(&book)
+		if err != nil {
+			ErrorWithJSON(w, "Database error", http.StatusInternalServerError)
+			log.Println("Failed to find book: ", err)
+			return
+		}
+
+		if book.ISBN == "" {
+			ErrorWithJSON(w, "Book not found", http.StatusNotFound)
+			return
+		}
+
+		respBody, err := json.MarshalIndent(book, "", " ")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		ResponseWithJSON(w, respBody, http.StatusOK)
 	}
 }
