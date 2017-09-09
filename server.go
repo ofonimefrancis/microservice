@@ -150,3 +150,58 @@ func bookByISBN(s *mgo.Session) func(w http.ResponseWriter, r *http.Request) {
 		ResponseWithJSON(w, respBody, http.StatusOK)
 	}
 }
+
+func updateBook(s *mgo.Session) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		session := s.Copy()
+		defer session.Close()
+
+		isbn := pat.Param(r, "isbn")
+
+		var book Book
+		decoder := json.NewDecoder(r.Body)
+		err := decoder.Decode(&book)
+		if err != nil {
+			ErrorWithJSON(w, "Incorrect body", http.StatusBadRequest)
+			return
+		}
+		c := session.DB("store").C("books")
+		err = c.Update(bson.M{"isbn": isbn}, &book)
+		if err != nil {
+			switch err {
+			default:
+				ErrorWithJSON(w, "Database error", http.StatusInternalServerError)
+				log.Println("Failed to update book: ", err)
+				return
+			case mgo.ErrNotFound:
+				ErrorWithJSON(w, "Book not found", http.StatusNotFound)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func deleteBook(s *mgo.Session) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		session := s.Copy()
+		defer session.Close()
+
+		isbn := pat.Param(r, "isbn")
+		c := session.DB("store").C("books")
+		err := c.Remove(bson.M{"isbn": isbn})
+		if err != nil {
+			switch err {
+			default:
+				ErrorWithJSON(w, "Database error", http.StatusInternalServerError)
+				log.Println("Failed to delete book: ", err)
+				return
+			case mgo.ErrNotFound:
+				ErrorWithJSON(w, "Book not found", http.StatusNotFound)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusNoContent)
+
+	}
+}
